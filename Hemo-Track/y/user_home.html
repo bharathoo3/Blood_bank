@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="User Dashboard for Blood Donation System - View donors, requests, and contributions.">
+  <title>User Dashboard - Blood Donation System</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="assets/images/blood_655983.png">
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-danger">
+    <div class="container">
+      <a class="navbar-brand" href="index.html" style="color: black;">
+        <img src="assets/images/logo.png" alt="Blood Donation Logo" width="30" height="30" class="d-inline-block align-top">
+        Blood Donation System
+      </a>
+      <div class="collapse navbar-collapse">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link active" href="user-dashboard.html" style="color: black;">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link" href="blood_request.html" style="color: black;">Request Blood</a></li>
+          <li class="nav-item"><a class="nav-link" href="my_requests.html" style="color: black;">Blood Requests</a></li>
+          <li class="nav-item"><a class="nav-link" href="register_donor.html" style="color: black;">Become a Donor</a></li>
+          <li class="nav-item"><a class="nav-link" href="#" onclick="logout()" style="color: black;">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Dashboard -->
+  <div class="container mt-4">
+    <h2 class="text-center">Welcome to Your Dashboard!</h2>
+
+    <div class="row">
+      <!-- Overview Cards -->
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-header bg-danger text-white">Total Donors</div>
+          <div class="card-body">
+            <h5 class="card-title" id="total-donors">Loading...</h5>
+            <p class="card-text">Total registered donors in your area.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-header bg-danger text-white">Blood Requests</div>
+          <div class="card-body">
+            <h5 class="card-title" id="blood-requests">Loading...</h5>
+            <p class="card-text">Current blood requests pending.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-header bg-danger text-white">Your Contributions</div>
+          <div class="card-body">
+            <h5 class="card-title" id="user-contributions">0</h5>
+            <p class="card-text">Total donations made.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blood Donors List -->
+    <div class="container mt-4">
+      <h2 class="text-center">Available Blood Donors</h2>
+      <div class="row" id="donorGrid"></div>
+    </div>
+
+    <!-- Donation Statistics Chart -->
+    <div class="container mt-4">
+      <canvas id="donationChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Firebase & Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBnnhV10gVqSiYaU5a_ST7N8hPTjIV6PX0",
+      authDomain: "blooddoner-4f9dd.firebaseapp.com",
+      projectId: "blooddoner-4f9dd",
+      storageBucket: "blooddoner-4f9dd.appspot.com",
+      messagingSenderId: "735634301432",
+      appId: "1:735634301432:web:863ceef0d404e79265360d"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Load Dashboard Data
+    async function loadDashboardData() {
+      try {
+        const bloodRequestsSnapshot = await getDocs(collection(db, "bloodRequests"));
+        document.getElementById("blood-requests").textContent = bloodRequestsSnapshot.size;
+
+        const donorsSnapshot = await getDocs(collection(db, "donors"));
+        document.getElementById("total-donors").textContent = donorsSnapshot.size;
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      }
+    }
+
+    // Load Donors
+    async function loadDonors() {
+      const donorGrid = document.getElementById("donorGrid");
+      donorGrid.innerHTML = "";
+
+      try {
+        const donorsSnapshot = await getDocs(collection(db, "donors"));
+        if (donorsSnapshot.empty) {
+          donorGrid.innerHTML = `<p class="text-center text-danger">No donors available yet.</p>`;
+          return;
+        }
+        
+        donorsSnapshot.forEach((doc) => {
+          const donor = doc.data();
+          if(donor.approved === true){
+          donorGrid.innerHTML += `
+            <div class="col-md-4 mb-3">
+              <div class="card shadow-sm">
+                <div class="card-body text-center">
+                  <h5 class="card-title">${donor.name}</h5>
+                  <p class="card-text"><strong>Blood Group:</strong> ${donor.bloodGroup}</p>
+                  <p class="card-text"><strong>Location:</strong> ${donor.location}</p>
+                  <button class="btn btn-primary" onclick="requestBlood('${doc.id}', '${donor.name}')">Request Blood</button>
+                </div>
+              </div>
+            </div>`;
+      }});
+      } catch (error) {
+        console.error("Error fetching donors:", error);
+        donorGrid.innerHTML = `<p class="text-center text-danger">Failed to load donors.</p>`;
+      }
+    }
+
+    window.onload = function() {
+      loadDashboardData();
+      loadDonors();
+    };
+  </script>
+
+  <script>
+    function requestBlood(donorId, donorName) {
+      window.location.href = `blood_request.html?donorId=${donorId}&donorName=${encodeURIComponent(donorName)}`;
+    }
+
+    function logout() {
+     
+        alert("Logged out successfully!");
+        window.location.href = "index.html";
+      
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

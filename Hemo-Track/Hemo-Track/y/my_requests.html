@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>My Blood Requests</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2 class="text-center text-danger">My Blood Requests</h2>
+        <div class="text-end mb-3">
+            <a href="user_home.html" class="btn btn-secondary">Back</a>
+        </div>
+
+        <table class="table table-bordered table-striped">
+            <thead class="table-danger">
+                <tr>
+                    <th>Blood Group</th>
+                    <th>Location</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="requests-table">
+                <!-- Requests will be dynamically added here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBnnhV10gVqSiYaU5a_ST7N8hPTjIV6PX0",
+            authDomain: "blooddoner-4f9dd.firebaseapp.com",
+            projectId: "blooddoner-4f9dd",
+            storageBucket: "blooddoner-4f9dd.appspot.com",
+            messagingSenderId: "735634301432",
+            appId: "1:735634301432:web:863ceef0d404e79265360d"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Load User Requests with Real-time Updates
+        function loadRequests() {
+            onAuthStateChanged(auth, (user) => {
+                if (!user) {
+                    alert("You need to log in first.");
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                const tableBody = document.getElementById("requests-table");
+                tableBody.innerHTML = ""; // Clear existing data
+
+                const requestsQuery = query(
+                    collection(db, "requests"),
+                    where("requesterId", "==", user.uid),
+                    orderBy("timestamp", "desc")
+                );
+
+                onSnapshot(requestsQuery, (snapshot) => {
+                    tableBody.innerHTML = ""; // Clear table before updating
+
+                    if (snapshot.empty) {
+                        tableBody.innerHTML = `<tr><td colspan="4" class="text-center">No requests found.</td></tr>`;
+                    }
+
+                    snapshot.forEach((doc) => {
+                        const request = doc.data();
+                        const requestId = doc.id;
+                        const statusClass = request.status === "approved" ? "text-success" : "text-warning";
+                        const row = `
+                            <tr id="row-${requestId}">
+                                <td>${request.bloodGroup}</td>
+                                <td>${request.location || "N/A"}</td>
+                                <td id="status-${requestId}" class="${statusClass}">
+                                    ${request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                                </td>
+                                <td>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteRequest('${requestId}')">Cancel</button>
+                                </td>
+                            </tr>
+                        `;
+                        tableBody.innerHTML += row;
+                    });
+                }, (error) => {
+                    console.error("Error fetching requests:", error);
+                    alert("Failed to load requests.");
+                });
+            });
+        }
+
+        // Delete Blood Request
+        window.deleteRequest = async function (requestId) {
+            if (confirm("Are you sure you want to cancel this request?")) {
+                try {
+                    await deleteDoc(doc(db, "requests", requestId));
+                    alert("Request deleted successfully.");
+                    document.getElementById(`row-${requestId}`)?.remove();
+                } catch (error) {
+                    alert("Error deleting request: " + error.message);
+                }
+            }
+        };
+
+        // Load Requests on Page Load
+        window.onload = loadRequests;
+    </script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

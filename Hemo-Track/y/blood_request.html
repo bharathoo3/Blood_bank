@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Request Blood - Blood Donation System</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body.modal-open .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container mt-5 text-center">
+        <a href="user-dashboard.html"><b>Back</b></a>
+    </div>
+
+    <!-- Blood Request Modal -->
+    <div class="modal fade show" id="requestModal" tabindex="-1" aria-labelledby="requestModalLabel" aria-hidden="true" style="display: block;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="requestModalLabel">Request Blood</h5>
+                    <button type="button" class="btn-close" onclick="closeModal()" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="requestForm">
+                        <input type="hidden" id="donorId">
+                        <div class="mb-3">
+                            <label for="donorName" class="form-label">Donor Name</label>
+                            <input type="text" class="form-control" id="donorName" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="bloodGroup" class="form-label">Blood Group</label>
+                            <input type="text" class="form-control" id="bloodGroup" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="requesterName" class="form-label">Your Name</label>
+                            <input type="text" class="form-control" id="requesterName" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="requesterEmail" class="form-label">Your Email</label>
+                            <input type="email" class="form-control" id="requesterEmail" readonly>
+                        </div>
+                        <button type="submit" class="btn btn-danger w-100">Send Request</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase JS SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBnnhV10gVqSiYaU5a_ST7N8hPTjIV6PX0",
+            authDomain: "blooddoner-4f9dd.firebaseapp.com",
+            projectId: "blooddoner-4f9dd",
+            storageBucket: "blooddoner-4f9dd.appspot.com",
+            messagingSenderId: "735634301432",
+            appId: "1:735634301432:web:863ceef0d404e79265360d"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Load User & Donor Data
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                alert("You must be logged in to request blood.");
+                window.location.href = "login.html";
+                return;
+            }
+
+            // Autofill User Information
+            document.getElementById("requesterEmail").value = user.email;
+
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (userDoc.exists()) {
+                document.getElementById("requesterName").value = userDoc.data().fullName || "Anonymous User";
+            }
+
+            // Get Donor Info from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const donorId = urlParams.get("donorId");
+            const donorName = urlParams.get("donorName");
+
+            if (!donorId || !donorName) {
+                alert("Invalid donor information. Redirecting to dashboard.");
+                window.location.href = "user-dashboard.html";
+                return;
+            }
+
+            document.getElementById("donorId").value = donorId;
+            document.getElementById("donorName").value = donorName;
+
+            // Fetch Donor Blood Group from Firestore
+            const donorDoc = await getDoc(doc(db, "donors", donorId));
+            if (donorDoc.exists()) {
+                document.getElementById("bloodGroup").value = donorDoc.data().bloodGroup || "Unknown";
+            } else {
+                alert("Donor not found. Redirecting...");
+                window.location.href = "user-dashboard.html";
+            }
+        });
+
+        // Submit Blood Request
+        document.getElementById('requestForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const donorId = document.getElementById('donorId').value;
+            const donorName = document.getElementById('donorName').value;
+            const bloodGroup = document.getElementById('bloodGroup').value;
+            const requesterName = document.getElementById('requesterName').value;
+            const requesterEmail = document.getElementById('requesterEmail').value;
+            const requesterId = auth.currentUser.uid;
+
+            if (!donorId) {
+                alert("Invalid donor information. Please try again.");
+                return;
+            }
+
+            if (!confirm("Are you sure you want to send this blood request?")) return;
+
+            try {
+                await addDoc(collection(db, "requests"), {
+                    donorId: donorId,
+                    donorName: donorName,
+                    bloodGroup: bloodGroup,
+                    requesterId: requesterId,
+                    requesterName: requesterName,
+                    requesterEmail: requesterEmail,
+                    status: 'pending',
+                    timestamp: serverTimestamp()
+                });
+
+                alert("Blood request submitted successfully.");
+                setTimeout(() => {
+                    window.location.href = "user-dashboard.html";
+                }, 2000);
+            } catch (error) {
+                alert("Error submitting request: " + error.message);
+            }
+        });
+
+        // Close Modal
+        function closeModal() {
+            window.location.href = "user-dashboard.html";
+        }
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin - Donor Management</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2 class="text-center text-danger">Manage Blood Donors</h2>
+        <div class="text-end mb-3">
+            <a href="admin_home.html" class="btn btn-secondary">Back to Homepage</a>
+        </div>
+
+        <table class="table table-bordered table-striped">
+            <thead class="table-danger">
+                <tr>
+                    <th>Name</th>
+                    <th>Blood Group</th>
+                    <th>location</th>
+                    <th>Contact</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="donors-table">
+                <!-- Donors will be dynamically added here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+    
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBnnhV10gVqSiYaU5a_ST7N8hPTjIV6PX0",
+            authDomain: "blooddoner-4f9dd.firebaseapp.com",
+            projectId: "blooddoner-4f9dd",
+            storageBucket: "blooddoner-4f9dd.appspot.com",
+            messagingSenderId: "735634301432",
+            appId: "1:735634301432:web:863ceef0d404e79265360d"
+        };
+    
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+    
+        // Ensure only admins can access
+        function checkAdmin() {
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    const userRef = doc(db, "users", user.uid);
+                    const userSnap = await getDoc(userRef);
+    
+                    if (userSnap.exists() && userSnap.data().role === "admin") {
+                        loadDonors();
+                    } else {
+                        alert("Access Denied! Only Admins Can View This Page.");
+                        window.location.href = "index.html";
+                    }
+                } else {
+                    alert("Please login first!");
+                    window.location.href = "index.html";
+                }
+            });
+        }
+        checkAdmin();
+    
+        // Load Blood Donors in Real-time
+        function loadDonors() {
+            const tableBody = document.getElementById("donors-table");
+    
+            onSnapshot(collection(db, "donors"), (snapshot) => {
+                tableBody.innerHTML = ""; // Clear previous data
+    
+                snapshot.forEach((doc) => {
+                    const donor = doc.data();
+                    const statusBadge = donor.approved === "false" ? "badge bg-warning text-dark" :
+                                        donor.approved === "true" ? "badge bg-success" : "badge bg-danger";
+    
+                    const row = `
+                        <tr>
+                            <td>${donor.name  || "N/A"}</td>
+                            <td>${donor.bloodGroup || "N/A"}</td>
+                            <td>${donor.location|| "N/A"}</td>
+                            <td>${donor.contact || "N/A"}</td>
+                            <td><span class="${statusBadge}">${donor.approved || "N/A"}</span></td>
+                            <td>
+                                ${donor.approved === "false" ? `
+                                    <button class="btn btn-success btn-sm" onclick="updateStatus('${doc.id}', 'true')">Approve</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteDonor('${doc.id}')">Reject</button>
+                                ` : `
+                                    <button class="btn btn-danger btn-sm" onclick="deleteDonor('${doc.id}')">Remove</button>
+                                `}
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            });
+        }
+    
+        // Update Donor Status
+        async function updateStatus(donorId, newStatus) {
+            if (confirm(`Are you sure you want to ${newStatus} this donor?`)) {
+                try {
+                    const donorRef = doc(db, "donors", donorId);
+                    await updateDoc(donorRef, { status: newStatus });
+                    alert(`Donor ${newStatus}!`);
+                } catch (error) {
+                    console.error("Error updating donor status:", error);
+                    alert("Failed to update donor status.");
+                }
+            }
+        }
+    
+        // Delete Donor
+        async function deleteDonor(donorId) {
+            if (confirm("Are you sure you want to remove this donor?")) {
+                try {
+                    await deleteDoc(doc(db, "donors", donorId));
+                    alert("Donor removed successfully!");
+                } catch (error) {
+                    console.error("Error deleting donor:", error);
+                    alert("Failed to delete donor.");
+                }
+            }
+        }
+    
+        // Attach functions to global scope
+        window.updateStatus = updateStatus;
+        window.deleteDonor = deleteDonor;
+    </script>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

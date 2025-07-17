@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin - Blood Requests</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2 class="text-center text-danger">Manage Blood Requests</h2>
+        <div class="text-end mb-3">
+            <a href="admin_home.html" class="btn btn-secondary">Back to Homepage</a>
+        </div>
+
+        <table class="table table-bordered table-striped">
+            <thead class="table-danger">
+                <tr>
+                    <th>Name</th>
+                    <th>Blood Group</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="requests-table">
+                <!-- Requests will be dynamically added here -->
+            </tbody>
+        </table>
+
+        <p id="error-message" class="text-danger text-center" style="display: none;">Failed to load blood requests.</p>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import Firebase modules correctly
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, onSnapshot, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBnnhV10gVqSiYaU5a_ST7N8hPTjIV6PX0",
+            authDomain: "blooddoner-4f9dd.firebaseapp.com",
+            projectId: "blooddoner-4f9dd",
+            storageBucket: "blooddoner-4f9dd.appspot.com",
+            messagingSenderId: "735634301432",
+            appId: "1:735634301432:web:863ceef0d404e79265360d"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Ensure only admins can access
+        function checkAdmin() {
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    const userRef = doc(db, "users", user.uid);
+                    const userSnap = await getDoc(userRef);
+    
+                    if (userSnap.exists() && userSnap.data().role === "admin") {
+                        loadBloodRequests();
+                        loadDonorRequests();
+                        loadApprovedDonors();
+                    } else {
+                        alert("Access Denied! Only Admins Can View This Page.");
+                        window.location.href = "index.html";
+                    }
+                } else {
+                    alert("Please login first!");
+                    window.location.href = "index.html";
+                }
+            });
+        }
+        checkAdmin();
+        // Load Blood Requests in Real-time
+        function loadRequests() {
+            const tableBody = document.getElementById("requests-table");
+
+            onSnapshot(collection(db, "requests"), (snapshot) => {
+                tableBody.innerHTML = ""; // Clear previous data
+
+                if (snapshot.empty) {
+                    document.getElementById("error-message").style.display = "block";
+                    return;
+                }
+
+                snapshot.forEach((doc) => {
+                    const request = doc.data();
+
+                    console.log("Request Data:", request); // Debugging
+
+                    const statusBadge = request.approved === "pending" ? "badge bg-warning text-dark" :
+                                        request.approved === "approved" ? "badge bg-success" : "badge bg-danger";
+
+                    const row = `
+                        <tr>
+                            <td>${request.requesterName || "N/A"}</td>
+                            <td>${request.bloodGroup || "N/A"}</td>
+                            <td>${request.requesterEmail || "N/A"}</td>
+                            <td><span class="${statusBadge}">${request.status || "N/A"}</span></td>
+                            <td>
+                                ${request.status === "pending" ? `
+                                    <button class="btn btn-success btn-sm" onclick="updateStatus('${doc.id}', 'approved')">Approve</button>
+                                    <button class="btn btn-danger btn-sm" onclick="updateStatus('${doc.id}', 'rejected')">Reject</button>
+                                ` : "—"}
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            }, (error) => {
+                console.error("Error fetching requests:", error);
+                document.getElementById("error-message").style.display = "block";
+            });
+        }
+        loadRequests();
+
+        // Update Request Status
+        async function updateStatus(requestId, newStatus) {
+            if (confirm(`Are you sure you want to ${newStatus} this request?`)) {
+                try {
+                    const requestRef = doc(db, "requests", requestId);
+                    await updateDoc(requestRef, { status: newStatus });
+                    alert(`Request ${newStatus}!`);
+                } catch (error) {
+                    console.error("Error updating request:", error);
+                    alert("Failed to update request status.");
+                }
+            }
+        }
+
+        // Attach updateStatus to global scope
+        window.updateStatus = updateStatus;
+    </script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
